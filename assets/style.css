@@ -256,3 +256,13 @@ ul.offices li { padding: 8px 0; }
 .pages { font-family: var(--font-nav); margin: 12px 0; } .pages a { margin: 0 8px; }
 @media (max-width: 600px) { #facets .ff.wide { grid-column: auto; } }
 section.doclinks ul { list-style: none; padding: 0; margin: 0; } section.doclinks li { padding: 3px 0; border-top: 1px solid var(--border); }
+/* ea_print: Stückbeschreibung, Gesandte, Verhandlungen */
+dl.sb { display: grid; grid-template-columns: max-content 1fr; gap: .3rem 1rem; }
+dl.sb dt { font: 600 .9rem var(--font-nav); color: var(--muted); }
+dl.sb dd { margin: 0; } dl.sb ul { margin: 0; padding-left: 1.1rem; }
+.item { margin: .5rem 0; padding-left: .6rem; border-left: 3px solid transparent; }
+.item.quelle, .item.referat-quelle { border-left-color: var(--accent, #b4232a); }
+.item .sig { font-family: var(--font-nav); }
+q.src { quotes: "„" "“"; font-family: "Junicode", serif; }
+.blk { margin: .4rem 0; } .blk .lab { display: block; font: 600 .75rem var(--font-nav); color: var(--muted); text-transform: uppercase; }
+.blk .l { display: block; }

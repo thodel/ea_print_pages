@@ -75,7 +75,7 @@ if (pager) fetch("pages.json").then(r => r.json()).then(data => {
     pager.innerHTML = `<div class="bar">${prev ? `<a href="#${prev.i}">← vorige</a>` : ""}
       <b>S. ${esc(p.n ?? "–")}</b> <span class="meta">(PDF-Seite ${p.i + 1} von ${P.length})</span>
       ${next ? `<a href="#${next.i}">nächste →</a>` : ""}
-      <a href="${esc(p.v)}" target="_blank">SSRQ Online ↗</a> <a href="${esc(data.pdf)}#page=${p.i + 1}" target="_blank">PDF ↗</a>
+      ${p.v ? `<a href="${esc(p.v)}" target="_blank">${esc(data.viewer || "Online")} ↗</a>` : ""} ${data.pdf ? `<a href="${esc(data.pdf)}#page=${p.i + 1}" target="_blank">PDF ↗</a>` : ""}
       <input size="5" placeholder="Seite" id="goto"></div>
       ${p.s ? `<p class="todo">OCR-Status: ${esc(p.s)}</p>` : ""}
       ${starts ? `<ul class="starts">Auf dieser Seite beginnt: ${starts}</ul>` : ""}
