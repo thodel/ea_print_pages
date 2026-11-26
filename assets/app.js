@@ -329,30 +329,20 @@ if (minimap && window.L) {
 
 // ---------------------------------------------------------------- sankey (r/sankey.html)
 const sk = $("#sankey");
-if (sk && window.d3 && d3.sankey) getJSON("sankey.json").then(flows => {
+if (sk && window.d3 && d3.sankey) getJSON("sankey.json").then(data => {
+  // EA: {"heads": [3 column titles], "flows": [[a, b, n]]}; colours by column, a click opens the Gesandtenregister
+  const flows = data.flows, heads = data.heads;
   const names = [...new Set(flows.flatMap(f => [f[0], f[1]]))];
   const W = Math.max(760, sk.clientWidth), H = Math.max(420, names.length * 22);
   const graph = d3.sankey().nodeId(d => d.name).nodeWidth(14).nodePadding(10).extent([[1, 26], [W - 230, H - 6]])({
     nodes: names.map(name => ({name})), links: flows.map(([s, t, v]) => ({source: s, target: t, value: v}))});
   const svg = d3.select(sk).append("svg").attr("viewBox", `0 0 ${W} ${H}`);
-  const col = n => ({Personen: "#dc878c", Orte: "#64c8c8", Familien: "#d7b95a", Organisationen: "#a58fd0", Sachen: "#8fb3d9", Glossar: "#b8b8b8",
-    "HLS verknüpft": "#d21938", "SSRQ/Königsfelden verknüpft": "#a81429", "mehrdeutig": "#d7b95a", "ohne Normdaten": "#c7c7c3"}[n] || "#7a4e14");
-  const canton = Object.fromEntries(Object.entries({AG: "Aargau", AR: "Appenzell", BE: "Bern", FR: "Freiburg / Fribourg", GE: "Genève", GL: "Glarus",
-    GR: "Graubünden", LU: "Luzern", NE: "Neuchâtel", SG: "St. Gallen", SH: "Schaffhausen", SO: "Solothurn", TG: "Thurgau", TI: "Ticino",
-    VD: "Vaud", VS: "Wallis / Valais", ZG: "Zug", ZH: "Zürich"}).map(([k, v]) => [v, k]));
-  const typ = Object.fromEntries(Object.entries(TYPE).map(([k, v]) => [v, k]));
-  const nrm = {"HLS verknüpft": "hls", "SSRQ/Königsfelden verknüpft": "ssrq", "mehrdeutig": "amb", "ohne Normdaten": "none"};
+  const firsts = new Set(flows.map(f => f[0])), seconds = new Set(flows.map(f => f[1]));
+  const col = n => n.startsWith("in ") ? "#64c8c8" : /Jh\.|ohne Jahr/.test(n) ? "#8fb3d9" : "#dc878c";
   svg.append("g").selectAll("path").data(graph.links).join("path").attr("class", "link").attr("d", d3.sankeyLinkHorizontal())
     .attr("stroke", d => col(d.target.name)).attr("stroke-width", d => Math.max(1, d.width))
-    .on("click", (ev, d) => {
-      const p = new URLSearchParams();
-      if (canton[d.source.name]) p.set("kanton", canton[d.source.name]);
-      if (typ[d.source.name]) p.set("typ", typ[d.source.name]);
-      if (typ[d.target.name]) p.set("typ", typ[d.target.name]);
-      if (nrm[d.target.name]) p.set("normdaten", nrm[d.target.name]);
-      location.href = `../s/suche.html#${p}`;
-    }).append("title").text(d => `${d.source.name} → ${d.target.name}: ${d.value}`);
-  [["Kanton des Bandes", 1], ["Typ des Registereintrags", (W - 230) / 2], ["Normdaten", W - 244]].forEach(([t, x]) =>
+    .on("click", () => { location.href = "gesandte/A.html";     }).append("title").text(d => `${d.source.name} → ${d.target.name}: ${d.value}`);
+  [[heads[0], 1], [heads[1], (W - 230) / 2], [heads[2], W - 244]].forEach(([t, x]) =>
     svg.append("text").attr("x", x).attr("y", 14).attr("class", "colhead").text(t).style("font", "600 13px var(--font-nav)"));
   const node = svg.append("g").selectAll("g").data(graph.nodes).join("g").attr("class", "node");
   node.append("rect").attr("x", d => d.x0).attr("y", d => d.y0).attr("height", d => Math.max(1, d.y1 - d.y0))

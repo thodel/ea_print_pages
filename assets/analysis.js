@@ -37,7 +37,7 @@ const STOP_WORDS = ("und der die das den dem des ein eine einen einem eines eine
 const STOP = new Set(STOP_WORDS.filter(Boolean).map(w => nrm(form(w))));
 
 // ---- state, kept in the URL hash
-const S = {coll: "", kt: [], vols: [], y0: null, y1: null, undated: true, parts: ["source"], spell: "norm", stop: true,
+const S = {coll: "", kt: [], vols: [], y0: null, y1: null, undated: true, parts: ["referat"], spell: "norm", stop: true,
            terms: [], m1: "list", dec: null};
 const parseHash = () => {
   const h = new URLSearchParams(location.hash.slice(1));
@@ -54,7 +54,7 @@ const writeHash = () => {
   const h = new URLSearchParams();
   if (S.coll) h.set("coll", S.coll);
   ["kt", "vols", "terms"].forEach(k => S[k].length && h.set(k, S[k].join(",")));
-  if (S.parts.join() !== "source") h.set("parts", S.parts.join(","));
+  if (S.parts.join() !== "referat") h.set("parts", S.parts.join(","));
   if (S.y0 != null) h.set("y", `${S.y0}-${S.y1}`);
   if (!S.undated) h.set("undated", "0");
   if (S.spell !== "norm") h.set("spell", S.spell);
@@ -93,9 +93,9 @@ async function facets() {
   M.vols.forEach(([vol, lab, kt, coll, n]) => { (cantons[kt] = cantons[kt] || {n: 0, vols: []}).n += n; cantons[kt].vols.push([vol, lab, coll, n]); });
   const kts = Object.keys(cantons).sort((a, b) => (CANTON[a] || a).localeCompare(CANTON[b] || b));
   box.innerHTML = `
-    <fieldset><legend>Bestand</legend>${[["", "alle"], ["druck", "Druckbände"], ["tei", "TEI-Bände"]].map(([v, t]) =>
+    <fieldset><legend>Bestand</legend>${[["", "alle"], ["abschiede", "Abschiede"], ["herrschaft", "Herrschaftsartikel"]].map(([v, t]) =>
       `<label><input type="radio" name="coll" value="${v}"${S.coll === v ? " checked" : ""}> ${t}</label>`).join(" ")}</fieldset>
-    <fieldset><legend>Kanton</legend><div class="an-list" id="f-kt">${kts.map(k =>
+    <fieldset><legend>Hauptband</legend><div class="an-list" id="f-kt">${kts.map(k =>
       `<label><input type="checkbox" value="${k}"${S.kt.includes(k) ? " checked" : ""}> ${esc(CANTON[k] || k)} <span class="meta">${fmt(cantons[k].n)}</span></label>`).join("")}</div></fieldset>
     <fieldset><legend>Band</legend><input class="filter" id="f-vq" placeholder="Band filtern …"><div class="an-list tall" id="f-vol"></div></fieldset>
     <fieldset class="wide"><legend>Zeitraum</legend><svg id="f-hist" viewBox="0 0 220 40" preserveAspectRatio="none"></svg><div class="ctl wide" id="f-years"></div>
@@ -273,7 +273,7 @@ async function view2() {
 }
 
 // ---- view 3: Kontexte (KWIC) from the published piece pages
-const SECTION = {edition: "source", heading: "heading", regest: "regest", description: "description", notes: "notes",
+const SECTION = {source: "wortlaut", edition: "referat", description: "heading", envoys: "envoys", notes: "notes",
                  commentary: "commentary", apparatus: "apparatus"};
 const pageCache = new Map();
 async function pageParts(path) {
@@ -354,7 +354,7 @@ function drawKwic(nAll, nLoaded) {
     <div class="an-kwic"><table><tbody>${rows.slice(0, 600).map(r => {
       const [v, y, path] = D[r.i];
       return `<tr><td class="l">${esc(r.left)}</td><td class="k">${esc(r.hit)}</td><td class="r">${esc(r.right)}</td>
-        <td class="src"><a href="${UPP}${esc(path)}" target="_blank">${esc(volLabel(M.vols[v][0]))} ${esc(path.split("/").pop().replace(/\.html$/, "").replace(/^(?:SSRQ|SDS|FDS)-[A-Z]+-[^-]+-/, ""))}</a> ${y || ""}${r.part !== "source" ? ` <span class="meta">${esc(M.part_de[r.part])}</span>` : ""}</td></tr>`;
+        <td class="src"><a href="${UPP}${esc(path)}" target="_blank">${esc(M.vols[v][1])} ${esc(path.split("/").pop().replace(/\.html$/, "").replace(/^0+/, "Nr. "))}</a> ${y || ""}${r.part !== "referat" ? ` <span class="meta">${esc(M.part_de[r.part])}</span>` : ""}</td></tr>`;
     }).join("")}</tbody></table></div>`;
 }
 $("#v3-tools") && document.addEventListener("click", ev => {
@@ -373,13 +373,10 @@ $("#v3-tools") && document.addEventListener("click", ev => {
   }
 });
 
-// ---- view 4: Umfeld — collocates (± 5 words) and register entries of the pieces with hits
-const FILE = {person: "persons", family: "families", place: "places", org: "orgs", subject: "subjects", glossary: "glossary"};
-async function entryLabel(cid) {
-  const m = cid.match(/^([a-z]+?)(\d+)$/); if (!m) return null;
-  const d = await getJSON(`${UPP}r/data/${FILE[m[1]]}-${Math.floor(+m[2] / 1000)}.json`);
-  return d && d[cid] ? d[cid].l : null;
-}
+// ---- view 4: Umfeld — collocates (± 5 words) and register entries of the pieces with hits (a/reg.json:
+// {"pages": {page path: [cluster ids]}, "lab": {cluster id: [label, href]}}, from ea_print.site)
+let REG = null;
+async function entryLabel(cid) { return REG && REG.lab[cid] ? REG.lab[cid][0] : null; }
 async function view4() {
   const body = $("#v4 .body");
   if (!KW.length) { body.innerHTML = '<p class="meta">Erscheint, sobald Kontexte geladen sind.</p>'; return; }
@@ -395,22 +392,17 @@ async function view4() {
     const p = (all.get(w) || 1) / N, e = win * p;
     return [w, c, ll(c, Math.max(0, (all.get(w) || 1) - c), win, N), c / e];
   }).filter(r => r[3] > 1).sort((a, b) => b[2] - a[2]).slice(0, 25);
-  // register entries cited by the pieces with hits (s/docs/<vol>.json: per piece [..., cites, slug])
-  const ent = new Map(), byVol = {};
-  [...new Set(KW.map(r => r.i))].forEach(i => { const [v, , path] = D[i]; (byVol[M.vols[v][0]] = byVol[M.vols[v][0]] || []).push(path); });
-  for (const [vol, paths] of Object.entries(byVol)) {
-    const sd = await getJSON(`${UPP}s/docs/${vol}.json`) || {};
-    const bySlug = {};
-    Object.values(sd).forEach(r => { if (r[6]) bySlug[r[6]] = r[5] || []; });
-    paths.forEach(p => (bySlug[p.split("/").pop().replace(/\.html$/, "")] || []).forEach(c => ent.set(c, (ent.get(c) || 0) + 1)));
-  }
+  // register entries cited by the pieces with hits
+  REG = REG || await getJSON(A + "reg.json") || {pages: {}, lab: {}};
+  const ent = new Map();
+  [...new Set(KW.map(r => r.i))].forEach(i => (REG.pages[D[i][2]] || []).forEach(c => ent.set(c, (ent.get(c) || 0) + 1)));
   const topEnt = [...ent].sort((a, b) => b[1] - a[1]).slice(0, 18);
   const labels = await Promise.all(topEnt.map(([c]) => entryLabel(c)));
   body.innerHTML = `<div class="an-cols"><div><h3>Wörter in der Nähe <span class="meta">(± 5 Wörter)</span></h3>
       ${scored.length ? `<table class="an-tab"><thead><tr><th>Wort</th><th>gemeinsam</th><th>LL</th></tr></thead><tbody>${scored.map(([w, c, g]) =>
         `<tr><td><a href="#" data-w="${esc(w)}">${esc(w)}</a></td><td>${c}</td><td>${g.toFixed(0)}</td></tr>`).join("")}</tbody></table>` : '<p class="meta">Zu wenige Fundstellen.</p>'}</div>
     <div><h3>Registereinträge in denselben Stücken</h3>${topEnt.length ? `<ul class="an-ent">${topEnt.map(([c, n], k) => labels[k] ?
-      `<li class="${(c.match(/^[a-z]+/) || [""])[0]}"><a href="${UPP}r/eintrag.html#${esc(c)}">${esc(labels[k])}</a> <span class="meta">${n} Stücke</span></li>` : "").join("")}</ul>` : '<p class="meta">Keine Registereinträge.</p>'}</div>
+      `<li class="${(c.match(/^[a-z]+/) || [""])[0]}"><a href="${UPP}${esc(REG.lab[c][1])}">${esc(labels[k])}</a> <span class="meta">${n} Stücke</span></li>` : "").join("")}</ul>` : '<p class="meta">Keine Registereinträge.</p>'}</div>
     <div><h3>Netz</h3><div id="v4-net"></div></div></div>`;
   network(scored.slice(0, 12), topEnt.slice(0, 8).map(([c, n], k) => [c, labels[k], n]).filter(x => x[1]));
 }
@@ -430,7 +422,7 @@ function network(words, ents) {
   g.append("text").attr("dx", 8).attr("dy", 4).text(d => d.label.length > 24 ? d.label.slice(0, 23) + "…" : d.label);
   g.style("cursor", "pointer").on("click", (ev, d) => {
     if (d.kind === "word") setTerms([d.label]);
-    else if (d.kind === "entry") window.open(`${UPP}r/eintrag.html#${d.id}`, "_blank");
+    else if (d.kind === "entry" && REG && REG.lab[d.id]) window.open(`${UPP}${REG.lab[d.id][1]}`, "_blank");
   });
   sim.on("tick", () => {
     l.attr("x1", d => d.source.x).attr("y1", d => d.source.y).attr("x2", d => d.target.x).attr("y2", d => d.target.y);
@@ -458,7 +450,8 @@ $("#an-q").addEventListener("submit", ev => {
   parseHash();
   [M, D] = await Promise.all([getJSON(A + "meta.json"), getJSON(A + "docs.json")]);
   if (!M || !D) { root.innerHTML = '<p class="todo">Die Daten der Auswertung sind noch nicht erzeugt.</p>'; return; }
-  CANTON = (await getJSON(`${UPP}s/search/meta.json`) || {}).cantons || {};
+  CANTON = {"1": "Bd. I · 1245–1420", "2": "Bd. II · 1421–1477", "3": "Bd. III · 1478–1520", "4": "Bd. IV · 1521–1586",
+    "5": "Bd. V · 1587–1648", "6": "Bd. VI · 1649–1712", "7": "Bd. VII · 1712–1777", "8": "Bd. VIII · 1778–1798"};
   $("#v1-modes").innerHTML = [["list", "Liste"], ["cloud", "Wolke"], ["keys", "Kennwörter"]].map(([k, t]) =>
     `<a href="#" data-m1="${k}" class="${S.m1 === k ? "on" : ""}">${t}</a>`).join(" ");
   $("#v1-modes").addEventListener("click", ev => {
