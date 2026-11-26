@@ -271,6 +271,7 @@ q.src { quotes: "„" "“"; font-family: "Junicode", serif; }
 #simmap .smstage { position: relative; border: 1px solid var(--border); background: #fff; }
 #simmap canvas { display: block; cursor: crosshair; }
 #simmap .smtip { position: absolute; pointer-events: none; background: rgba(255,255,255,.95); border: 1px solid var(--border);
+  padding: 4px 6px; font-size: .8rem; max-width: 22rem; box-shadow: 0 2px 6px rgba(0,0,0,.12); }
 #simmap .smlegend { display: flex; flex-wrap: wrap; gap: .2rem .9rem; font-size: .8rem; margin: .5rem 0; }
 #simmap .smlegend i { display: inline-block; width: .7rem; height: .7rem; border-radius: 50%; margin-right: .3rem; vertical-align: -1px; }
 #simmap .smcount { color: var(--muted, #666); font-size: .85rem; }
